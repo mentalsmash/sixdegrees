@@ -1,0 +1,12 @@
+*.db
+__pycache__
+.vscode
+*.whl
+_build
+dist
+.pytest_cache
+.ruff_cache
+*venv*
+poetry.lock
+build
+test-results/
