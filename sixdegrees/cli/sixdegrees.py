@@ -83,16 +83,26 @@ def sixdegrees_wp(args):
 
   matched_actors, candidate_credits = db.cache.search_characters(credit, query=query, **extra_params)
   if not matched_actors:
-    log.error("no characters found in '{}'{}", credit, query, f" matching '{query}'" if query else "")
+    log.error("no characters found in '{}' ({}){}",
+      credit,
+      query,
+      credit.id.imdb_url,
+      f" matching '{query}'" if query else "")
     if candidate_credits:
       log.warning("{} characters found in '{}':", len(candidate_credits), credit)
       for i, (ch_name, pid, pname) in enumerate(sorted(candidate_credits, key=lambda v: v[2])):
-        log.warning("{}. '{}' played '{}'", i + 1, pname, ch_name)
+        imdb_str = f" ({ObjectId(ObjectKind.PERSON, pid).imdb_url})" if args.detailed else ""
+        log.warning("{}. '{}' played '{}'{}", i + 1, pname, ch_name, imdb_str)
     raise RuntimeError("no matches")
 
-  log.info("{} character{} in '{}'{}", len(matched_actors), "s" if len(matched_actors) != 1 else "", credit, f" match '{query}'" if query else "")
+  log.info("{} character{} in '{}' ({}){}",
+    len(matched_actors),
+    "s" if len(matched_actors) != 1 else "",
+    credit,
+    credit.id.imdb_url,
+    f" match '{query}'" if query else "")
   noninteractive = not fzf_interactive_supported()
-  if not noninteractive:
+  if not noninteractive and False:
     tabs_parser = fzf_tab_separated_results_parser(4)
     def _results_parser(line: str | None) -> "tuple[ObjectId, str, str] | None":
       result = tabs_parser(line)
@@ -122,11 +132,14 @@ def sixdegrees_wp(args):
 
   log.info("{} character{} selected from '{}'{}", len(selected_actors), "s" if len(selected_actors) != 1 else "", credit, f" with query '{query}'" if query else "")
   for i, (score, actor_id, actor_name, ch_name) in enumerate(selected_actors):
-    log.info("{}/{}. '{}' played '{}'{}",
+    imdb_str = f" ({actor_id.imdb_url})" if args.detailed else ""
+    log.info("{}/{}. '{}' played '{}'{}{}",
       i + 1, len(selected_actors),
       actor_name, ch_name,
-      f" ({score}% match)" if query else "")
-    print(actor_id.n)
+      f" ({score}% match)" if query else "",
+      imdb_str)
+    if args.print_id:
+      print(actor_id.n)
 
 
 def sixdegrees_whit(args):
@@ -166,35 +179,42 @@ def sixdegrees_whit(args):
   if credit is not None:
     if len(matched_credits) > 0:
       if len(matched_credits) == 1:
-        log.info("'{}' was in '{}' as {}", actor, credit, f"'{matched_credits[0]['character'] or '<unknown>'}'")
+        log.info("'{}' ({}) was in '{}' ({}) as {}", actor, actor.id.imdb_url, credit, credit.id.imdb_url, f"'{matched_credits[0]['character'] or '<unknown>'}'")
       else:
         characters = sorted({
           c["character"] or '<unknown>' for c in matched_credits
         })
-        log.info("'{}' was in '{}' as {}", actor, credit, f"{len(characters)} characters:")
+        log.info("'{}' ({}) was in '{}' ({}) as {}", actor, actor.id.imdb_url, credit, credit.id.imdb_url, f"{len(characters)} characters:")
         for i, ch in enumerate(characters):
           log.info("{}/{}. '{}'", i+1, len(characters), ch)
 
     else:
-      log.error("it doesn't seem like '{}' was in '{}'", actor, credit)
+      log.error("it doesn't seem like '{}' ({}) was in '{}' ({})", actor, actor.id.imdb_url, credit, credit.id.imdb_url)
       raise RuntimeError("credit not found")
   elif len(matched_credits) == 0:
-    log.error("it doesn't seem like '{}' has acted in anything", actor)
+    log.error("it doesn't seem like '{}' ({}) has acted in anything", actor, actor.id.imdb_url)
     raise RuntimeError("actor has no credits")
   else:
-    log.info("showing {}{} role{} played by '{}':",
+    log.info("showing {}{} role{} played by '{}' ({}):",
       "all " if len(matched_credits) > 1 else "",
       len(matched_credits),
       "s" if len(matched_credits) > 1 else "",
-      actor)
+      actor,
+      actor.id.imdb_url)
     for i, actor_credit in enumerate(matched_credits):
+      actor_credit_id = ObjectId(ObjectKind.parse_media_type(actor_credit["media_type"]), actor_credit["id"])
       credit_title = actor_credit.get("title", actor_credit.get("name", None))
-      log.info("{}/{}. '{}' ({}), as '{}'",
+      if not args.detailed:
+        detailed_str = ""
+      else:
+        detailed_str = f" ({actor_credit_id.imdb_url})"
+      log.info("{}/{}. '{}' ({}), as '{}'{}",
         i + 1,
         len(matched_credits),
         credit_title,
         actor_credit.get("first_air_date", actor_credit.get("release_date", 0)),
-        actor_credit["character"] or "Uncredited")
+        actor_credit["character"] or "<unknown>",
+        detailed_str)
 
 
 def _parser_explore(cmd_explore):
@@ -268,6 +288,16 @@ def _parser_wp(cmd_wp):
     type=int,
     default=0)
 
+  cmd_wp.add_argument("-D", "--detailed",
+    help="Download and print more detailed information (e.g. actors IMDB links).",
+    action="store_true",
+    default=False)
+
+  cmd_wp.add_argument("-i", "--print-id",
+    help="Print the TMDB id of matched actors to stdout.",
+    action="store_true",
+    default=False)
+
   # cmd_wp.add_argument("-m", "--multi",
   #   help="Return multiple results if available.",
   #   action="store_true",
@@ -306,6 +336,11 @@ def _parser_whit(cmd_whit):
     help="Episode of a TV Series. Accepted formats: NxM, sNeM",
     default=None)
 
+  cmd_whit.add_argument("-D", "--detailed",
+    help="Download and print more detailed information (e.g. credit IMDB links).",
+    action="store_true",
+    default=False)
+
   cmd_whit.add_argument("actor",
     metavar="ACTOR_NAME",
     help="Name of the actor to match or TMDB ID.",
@@ -340,12 +375,12 @@ def define_parser():
   # common_arguments(cmd_explore)
   # _parser_explore(cmd_explore)
 
-  cmd_wp = subparsers.add_parser("role")
+  cmd_wp = subparsers.add_parser("cast", aliases=["c",])
   cmd_wp.set_defaults(cmd=sixdegrees_wp)
   common_arguments(cmd_wp)
   _parser_wp(cmd_wp)
 
-  cmd_whit = subparsers.add_parser("played")
+  cmd_whit = subparsers.add_parser("credits", aliases=["C"])
   cmd_whit.set_defaults(cmd=sixdegrees_whit)
   common_arguments(cmd_whit)
   _parser_whit(cmd_whit)

@@ -44,62 +44,62 @@ The script relies on [The Movie Database](https://www.themoviedb.org) to discove
 - Search the main cast of a TV series:
 
   ```sh
-  6d role -T "black books" bernard
+  6d cast -T "black books" bernard
   ```
 
 - Search the cast of a specific episode of a TV series:
 
   ```sh
-  6d role -T seinfeld -e 4x11 marla
+  6d cast -T seinfeld -e 4x11 marla
   ```
 
 - Search the cast of a specific season of TV series:
 
   ```sh
-  6d role -S "the office" -s 1 roy
+  6d cast -S "the office" -s 1 roy
   ```
 
 - Search the cast of all seasons of a TV series (i.e. download more detailed season information):
 
   ```sh
-  6d role -T "community" -t pierce
+  6d cast -T "community" -t pierce
   ```
 
 - Show the main cast of a TV series:
 
   ```sh
-  6d role -T "the office"
+  6d cast -T "the office"
   ```
 
 - Show the cast of a specific episode of a TV series:
 
   ```sh
-  6d role -T "the office" -e s01e01
+  6d cast -T "the office" -e s01e01
   ```
 
 - Show the cast of a specific season of a TV series:
 
   ```sh
-  6d role -T "the office" -s 1
+  6d cast -T "the office" -s 1
   ```
 
-### Whas that actor in that?
+### Was that actor in that?
 
 - Search an actor's credit for a specific TV series:
 
   ```sh
-  6d played "bryan cranston" -T "murder she wrote"
+  6d credits "bryan cranston" -T "murder she wrote"
   ```
 
 - Check if an actor playing a character in a TV series episode was in a movie:
 
   ```sh
-  6d played $(6d role -T "black books" bernard) -M "shaun of the dead"
+  6d credits $(6d cast -T "black books" bernard -i) -M "shaun of the dead"
   ```
 
 - Show all roles played by an actor:
 
   ```sh
-  6d played "bryan cranston"
+  6d credits "bryan cranston"
   ```
 

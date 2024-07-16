@@ -53,12 +53,17 @@ class ObjectKind(Enum):
         "credits": api.combined_credits(),
       }
     elif self == ObjectKind.MOVIE:
+      info = api.info()
+      external_ids = api.external_ids()
+      info.update(external_ids)
       return {
-        "info": api.info(),
+        "info": info,
         "credits": api.credits(),
       }
     elif self == ObjectKind.TV_SERIES:
       info = api.info()
+      external_ids = api.external_ids()
+      info.update(external_ids)
       return {
         "info": info,
         "credits": api.credits(),
@@ -130,6 +135,22 @@ class ObjectId(tuple):
   def metadata(self, metadata: dict) -> None:
     self._metadata = metadata
 
+  @property
+  def imdb_id(self) -> int:
+    return self.metadata["info"]["imdb_id"]
+
+  @property
+  def imdb_url(self) -> str:
+    if self.imdb_id is None:
+      from urllib.parse import quote
+      title = self.metadata["info"].get("name", self.metadata["info"].get("title"))
+      if not title:
+        return ""
+      return f"https://www.imdb.com/find/?q={quote(title)}"
+
+    path = "name" if self.kind == ObjectKind.PERSON else "title"
+    return f"https://www.imdb.com/{path}/{self.imdb_id}/"
+
 
 class TmdbObject:
   def __init__(self, cache: "TmdbCache", id: ObjectId) -> None:
@@ -144,10 +165,10 @@ class TmdbObject:
   def __hash__(self) -> int:
     return hash(self.id)
 
+
   @property
   def related(self) -> "Generator[ObjectId, None, None]":
     raise NotImplementedError()
-
 
 class Person(TmdbObject):
   def __init__(self, cache: "TmdbCache", id: ObjectId) -> None:
@@ -278,7 +299,7 @@ class Movie(ActingCredit):
       played_by: ObjectId | None = None,
       **extra_params) -> tuple[list[tuple[int, ObjectId, str, str]], list[tuple[str, int, str]]]:
     credits = {
-      (c["character"] or "Uncredited", c["id"], c["name"])
+      (c["character"] or "<unknown>", c["id"], c["name"])
       for c in self.cast
       if played_by is None or c["id"] == played_by.id.n
     }
@@ -473,7 +494,7 @@ class TvSeries(ActingCredit):
         credits = self.id.metadata["credits"]["cast"]
       log.info("searching for {} in {}", query_log_str, self)
 
-    credits = {(c["character"] or "Uncredited", c["id"], c["name"]) for c in credits}
+    credits = {(c["character"] or "<unknown>", c["id"], c["name"]) for c in credits}
     return self._search_character_credits(credits, query=query, **extra_params)
 
 
